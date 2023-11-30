@@ -802,7 +802,29 @@ sub spare_dependencies
         return $self->spare_deps_requires($rm, $install, $error_is_warn);
     }
 }
+# When a package appears in the "to remove" list
+# with more than one architecture, we must keep at
+# least one, because some noarch packages could depend
+# on one of them (example: redhat-rpm-config).
+sub keep_noarch_deps
+{
+    my ($self, $torm) = @_;
 
+    my @torm_nameonly = map { (my $x = $_) =~ s/(.*);(.*)/$1/g; $x } @$torm;
+
+    my @torm_sorted = sort(@$torm);
+    my @torm_no_uniq = do { my %seen; grep { !$seen{$_}++ } @torm_nameonly};
+
+    my @torm_reduced;
+    foreach my $elem (@torm_no_uniq) {
+        my @found = grep(/$elem/, @torm_sorted);
+        push(@torm_reduced, $found[0]);
+    };
+    $torm->clear();
+    $torm->insert(@torm_reduced);
+
+    return 1;
+}
 
 # Completes any pending transactions
 sub _do_complete_transaction {
@@ -919,6 +941,7 @@ sub update_pkgs
         $to_rm = $self->packages_to_remove($wanted);
         defined($to_rm) or return 0;
         $self->spare_dependencies($to_rm, $to_install, $error_is_warn);
+        $self->keep_noarch_deps($to_rm);
         $tx = $self->schedule(REMOVE, $to_rm);
     }
 
