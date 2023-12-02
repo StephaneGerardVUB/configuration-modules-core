@@ -232,6 +232,9 @@
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>rpm-maven-plugin</artifactId>
           <configuration>
+            <defineStatements>
+              <defineStatement>_unpackaged_files_terminate_build 0</defineStatement>                                                              
+            </defineStatements>
             <requires>
               <require>yum &gt;= 3.2.29</require>
               <require>yum-utils &gt;= 1.1.30</require>
