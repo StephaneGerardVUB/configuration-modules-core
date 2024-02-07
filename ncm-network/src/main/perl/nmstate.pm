@@ -308,6 +308,7 @@ sub generate_nmstate_config
     my $is_eth = $iface->{hwaddr} ? 1 : 0;
     my $eth_bootproto = $iface->{bootproto} || 'static';
     my $is_ip = exists $iface->{ip} ? 1 : 0;
+    my $is_ipv6 = exists $iface->{ipv6addr} ? 1 : 0;
     my $is_vlan_eth = exists $iface->{vlan} ? 1 : 0;
     my $is_partof_bond = exists $iface->{master} ? 1 : 0;
     my $iface_changed = 0;
@@ -319,9 +320,7 @@ sub generate_nmstate_config
     $ifaceconfig->{'mac-address'} = $iface->{hwaddr} if $iface->{hwaddr};
     $ifaceconfig->{'profile-name'} = $name;
 
-    # this will be empty if the interface isnt a bond interface.
-    # we can use this to determine if this interface is bond interface.
-    my $bonded_eth = get_bonded_eth($self, $name, $net->{interfaces});
+
     if ($is_eth) {
         $ifaceconfig->{type} = "ethernet";
         if ($is_partof_bond) {
@@ -337,10 +336,11 @@ sub generate_nmstate_config
         $ifaceconfig->{type} = "vlan";
         $ifaceconfig->{vlan}->{'base-iface'} = $iface->{physdev};
         $ifaceconfig->{vlan}->{'id'} = $vlan_id;
-    } elsif ($bonded_eth) {
+    } else {
         # if bond device
         $ifaceconfig->{type} = "bond";
         $ifaceconfig->{'link-aggregation'} = $iface->{link_aggregation};
+        my $bonded_eth = get_bonded_eth($self, $name, $net->{interfaces});
         if ($bonded_eth){
             $ifaceconfig->{'link-aggregation'}->{port} = $bonded_eth;
         }
@@ -363,12 +363,17 @@ sub generate_nmstate_config
             $ifaceconfig->{ipv4}->{address} = [$ip_list];
             $ifaceconfig->{ipv4}->{dhcp} = $YFALSE;
             $ifaceconfig->{ipv4}->{enabled} = $YTRUE;
-        } elsif ($iface->{ipv6addr}) {
-            $self->warn("ipv6 addr found but not supported");
-            $ifaceconfig->{ipv6}->{enabled} = $YFALSE;
-            # TODO create ipv6.address entries here. i.e
-            #$ifaceconfig->{ipv6}->{address} = [$ipv6_list];
-        } else {
+        }
+        if ($is_ipv6) {
+            my $ipv6_list = {};
+            my $ipv6 = NetAddr::IP->new($iface->{ipv6addr});
+            $self->verbose("IPV6 ADDRESS: " .$iface->{ipv6addr});
+            $ipv6_list->{ip} = $ipv6->addr;
+            $ipv6_list->{'prefix-length'} = 64;
+            $ifaceconfig->{ipv6}->{address} = [$ipv6_list];
+            $ifaceconfig->{ipv6}->{enabled} = $YTRUE;
+        }
+        if (!$is_ip && !$is_ipv6) {
             $self->error("No ip address defined for static bootproto");
         }
     } elsif (($eth_bootproto eq "dhcp") && (!$is_partof_bond)) {
@@ -406,13 +411,13 @@ sub generate_nmstate_config
     #     next-hop-interface:
     #  and so on.
     my $routes = [];
-    push @$routes, @{$self->make_nm_route_absent($name)};
-    push @$routes, \%default_rt if scalar %default_rt;
     if (defined($iface->{route})) {
         $self->verbose("policy route found, nmstate will manage it");
         my $route = $iface->{route};
-        my $policyroutes = $self->make_nm_ip_route($name, $route, $routing_table);
-        push @$routes, @{$policyroutes};
+        $routes = $self->make_nm_ip_route($name, $route, $routing_table);
+        push @$routes, \%default_rt if scalar %default_rt;
+    } elsif (scalar %default_rt){
+        push @$routes, \%default_rt if scalar %default_rt;
     }
 
     my $policy_rule = [];
