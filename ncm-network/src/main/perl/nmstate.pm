@@ -417,6 +417,14 @@ sub generate_nmstate_config
             stp => $YTRUE,
         };
         $ifaceconfig->{bridge}->{port} = [ map { {name => $_} } @{$iface->{ports}} ];
+    } elsif ($lctype eq 'bridge') {
+        $can_ignore_bootproto ||= 1;
+        $ifaceconfig->{type} = "linux-bridge";
+        $ifaceconfig->{state} = "up";
+        $ifaceconfig->{bridge}->{options}->{stp} = {
+            enabled => $YTRUE,
+        };
+        $ifaceconfig->{bridge}->{port} = [ map { {name => $_} } @{$iface->{ports}} ];
     } elsif ($lctype eq 'ovsintport') {
         $can_ignore_bootproto ||= 1;
         # TODO: when extending this to ovsport, deal with eg type=ovsport driver=bonding
