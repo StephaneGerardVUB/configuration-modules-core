@@ -376,7 +376,8 @@ sub generate_nmstate_config
     my $is_ip = exists $iface->{ip} ? 1 : 0;
     my $is_vlan_eth = exists $iface->{vlan} ? 1 : 0;
     my $is_partof_bond = exists $iface->{master} ? 1 : 0;
-    my $can_ignore_bootproto = $is_partof_bond;
+    my $is_partof_bridge = exists $iface->{bridge} ? 1 : 0;
+    my $can_ignore_bootproto = $is_partof_bond || $is_partof_bridge;
     my $iface_changed = 0;
 
     # create hash of interface entries that will be used by nmstate config.
