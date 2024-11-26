@@ -405,6 +405,8 @@ sub generate_nmstate_config
     my $is_ip = exists $iface->{ip} ? 1 : 0;
     my $is_vlan_eth = exists $iface->{vlan} ? 1 : 0;
     my $is_partof_bond = exists $iface->{master} ? 1 : 0;
+    my $is_partof_bridge = exists $iface->{bridge} ? 1 : 0;
+    my $can_ignore_bootproto = $is_partof_bond || $is_partof_bridge;
     my $can_ignore_bootproto = $is_partof_bond;
     my $iface_changed = 0;
 
@@ -441,6 +443,14 @@ sub generate_nmstate_config
         $can_ignore_bootproto ||= 1;
         $ifaceconfig->{type} = "ovs-bridge";
         $ifaceconfig->{state} = "up";
+        $ifaceconfig->{bridge}->{port} = [ map { {name => $_} } (@{$iface->{ports}}, $name) ];
+    } elsif ($lctype eq 'bridge') {
+        $can_ignore_bootproto ||= 1;
+        $ifaceconfig->{type} = "linux-bridge";
+        $ifaceconfig->{state} = "up";
+        $ifaceconfig->{bridge}->{options}->{stp} = {
+            enabled => $YTRUE,
+        };
         $ifaceconfig->{bridge}->{port} = [ map { {name => $_} } (@{$iface->{ports}}, $name) ];
     } elsif ($lctype eq 'ovsintport') {
         $can_ignore_bootproto ||= 1;
